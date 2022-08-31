@@ -1,0 +1,81 @@
+"""
+file:                   JACoP Excel Exporter
+
+aim:                    Export data from JACoP (an imageJ plugin) to Excel.
+
+author:                 Alex Tchung
+
+To do before running:   1. In a parent directory, create a "_logs" folder. 
+                        2. In that directory, paste all your log files. Kindly make sure to rename each log file according to the image's name.
+
+instructions:           1. Paste this file in the same folder containing the "_logs" folder that you want analyzed. 
+                        2. Open the terminal (win + R and type "cmd" and press enter). 
+                        3. Type "python " (with the space) and drag and drop "JACoP Excel Exporter.py" in the terminal. 
+                        4. Press enter. The Excel file should be created in the "output" folder.
+
+Changelogs:             2022-02-24 - The monster is alive!
+"""
+
+import os # File manipulation
+import xlsxwriter # Data manipulation to Excel 
+
+# Get parent directory
+masterDir = os.path.dirname(__file__)
+    
+# Loop through all data files
+dataInput = masterDir + "/_logs/"
+dataOutput = masterDir + "/output/"
+if os.path.exists(dataInput) == 0:
+	os.mkdir(dataInput)
+if os.path.exists(dataOutput) == 0:
+	os.mkdir(dataOutput)
+list = os.listdir(dataInput)
+
+dataInDir = 0
+r_list = ['R']
+m1_list = ['M1']
+m2_list = ['M2']
+master_list = []
+name_list = ['']
+
+for dataInDir in range(0, len(list)): # Read each individual file in _logs
+    path = list[dataInDir]
+    file = dataInput + path
+    path = path.replace('.txt','').replace('.tif','')
+
+    with open(file, 'r') as rawData: 
+        lines = rawData.readlines() # Read by line
+        dataArray = rawData.read() # Read file
+
+        # Split lines with = and ( to only keep the interesting values. Append after.
+        r  = lines[5].split("=")
+        r  = r[1].split("\n")
+        r = float(r[0])
+        
+        m1  = lines[12].split("=")
+        m1  = m1[1].split("(")
+        m1 = float(m1[0])
+
+        m2  = lines[13].split("=")
+        m2  = m2[1].split("(")
+        m2 = float(m2[0])
+
+    name_list.append(path)
+    r_list.append(r)
+    m1_list.append(m1)
+    m2_list.append(m2)
+    
+master_list.append(name_list)
+master_list.append(r_list)
+master_list.append(m1_list)
+master_list.append(m2_list)
+
+# Save to Excel
+workbook = xlsxwriter.Workbook(dataOutput + 'results.xlsx')
+worksheet = workbook.add_worksheet()
+
+for col, col_data in enumerate(master_list):
+    for row, row_data in enumerate(col_data):
+        worksheet.write(row, col, row_data)
+
+workbook.close()
