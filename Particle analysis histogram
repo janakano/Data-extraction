@@ -1,0 +1,329 @@
+"""
+file:           Varicosity size histogram
+author:         Alex Tchung
+info:           Trace a histogram from CSV files 
+instructions:   Open terminal. Type "python " (with the space) and drag and drop this script in the terminal. Press enter. 
+"""
+
+from itertools import count
+import os, glob
+import pandas as pd
+import csv
+import matplotlib.pyplot as plt
+import numpy as np
+
+masterDir = os.path.dirname(__file__)
+dataInput = masterDir + "/_logs/"
+
+if os.path.exists(dataInput) == 0:
+	os.mkdir(dataInput)
+
+all_files = glob.glob(os.path.join(dataInput, "*.csv"))
+
+df = []
+all_df = []
+df_merged = []
+
+# Import number of infected cells first as a dict because we'll need it 
+dfInfected = pd.read_excel(masterDir + "/infected.xlsx")
+dfInfected.convert_dtypes() # Convert to the best datatype
+dfInfected = dfInfected.replace(u'\xa0', u'', regex=True) # Remove non-breaking spaces
+dfInfectedDict = dfInfected.set_index('Mouse')['Infected cells'].to_dict()
+
+for f in all_files: # For all Excel files in /logs/
+  
+    with open(f, 'r') as csvfile:
+        df = pd.read_csv(f, sep=',') # Read the CSV file and seperate values by ","
+        df.convert_dtypes() # Convert to the best datatype
+        
+        # Calc the values we want
+        df['Label'] = str(df['Label']).split(' - ')[0] # Get the file name from the label
+        df['Mouse'] = f.split('/')[-1].split('.')[-3].split('\\')[-1].split(' ')[0].split('-')[0] # Get the mouse name from the file name
+        df['Region'] = f.split('/')[-1].split('.')[-3].split('\\')[-1].split(' ')[1] # Cleanup the image name
+        if(df['Region'][0] == "mfb"):
+            df['Region'] = df['Region'].str.upper()
+        if(df['Region'][0] == "striatum"):
+            df['Region'] = df['Region'].str.capitalize()
+            
+        df['Area'] = df['Area'] * 0.0428
+
+        df['Infected cells'] = df['Mouse'].map(dfInfectedDict) # Assign number of infected cells depending on the mouse
+        
+        all_df.append(df) # Append line to the final array
+        df_merged = pd.concat(all_df) # Merge all lines into one array
+
+data = df_merged[['Region', 'Area', 'Mouse', 'Infected cells']] # Select the columns we want
+groupedByRegion = data.groupby('Region')
+groupedByMouse = data.groupby('Mouse')
+
+colors = {'SN': 'blue', 'VTA': 'orange', 'MFB': 'green', 'Striatum': 'grey'}
+order = ['Striatum', 'SN', 'VTA', 'MFB']
+
+# Plot seperate graphs for each region for number of varicosities
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    # plotting the points
+    counts, edges, bars = plt.hist(group['Area'], histtype='stepfilled', alpha=1, bins=100, label=name, color = colors[name])
+    plt.title(name)
+    # Name the axis
+    plt.xlabel('Varicosity size (um$^{2}$)')
+    plt.ylabel('Number of varicosities')
+    plt.savefig(masterDir + '/' + name + '.png')
+    pd.DataFrame(np.insert(counts, 0, 0), edges).to_excel(masterDir + '/' + name +  ".xlsx") # Save the data to an Excel file
+    plt.clf() # Clear figure
+
+# Plot all graphs in one graph for number of varicosities
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    # plotting the points
+    plt.hist(group['Area'], histtype='step', alpha=1, bins=100, label=name)
+    plt.title("Varicosity size distribution")
+    # Name the axis
+    plt.xlabel('Varicosity size (um$^{2}$)')
+    plt.ylabel('Number of varicosities')
+    plt.legend(loc='upper right') # Name the legend
+
+plt.savefig(masterDir + '/combined-Raw.png')
+plt.clf() # Clear figure
+
+# Plot seperate graphs for each region for number of varicosities (normalized)
+#
+# If we want to normalize, we want to trace Number of varicosities (% of total) en fonction de varicosity size, donc ce n'est plus un histogramme qu'il faut, mais un plot normal
+#
+normalizedCounts = []
+normalizedEdges = []
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    # plotting the points
+    counts, edges, bars = plt.hist(group['Area'], histtype='stepfilled', alpha=1, bins=100, label=name)
+    countSum = counts.sum() 
+    normalizedCount = counts / countSum
+    normalizedCounts.append(normalizedCount)
+    normalizedEdges.append(edges)
+    plt.clf() # Clear figure
+
+i = 0
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    plt.step(np.delete(normalizedEdges[i], len(normalizedEdges[i])-1), normalizedCounts[i]*100, alpha=1, label=name)
+    plt.title(name)
+    # Name the axis
+    ax = plt.subplot(111)
+    ax.spines.right.set_visible(False)
+    ax.spines.top.set_visible(False)
+    plt.xlabel('Varicosity size (um$^{2}$)')
+    plt.ylabel('Number of varicosities (% of total)')
+    pd.DataFrame(np.insert(normalizedCounts[i], 0, 0), normalizedEdges[i]).to_excel(masterDir + '/' + name +  "-normalized.xlsx") # Save the data to an Excel file
+    plt.savefig(masterDir + '/' + name + '-Normalized.png')
+    plt.clf() # Clear figure
+    i = i + 1
+
+# Plot all graphs in one graph for number of varicosities (normalized)
+normalizedCounts = [] #y
+normalizedEdges = []#x
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    # plotting the points
+    counts, edges, bars = plt.hist(group['Area'], histtype='step', alpha=1, bins=50, label=name, color = colors[name])
+    countSum = counts.sum() 
+    normalizedCount = counts / countSum
+    normalizedCounts.append(normalizedCount)
+    normalizedEdges.append(edges)
+    plt.clf() # Clear figure
+
+i = 0
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    plt.step(np.delete(normalizedEdges[i], len(normalizedEdges[i])-1), normalizedCounts[i]*100, alpha=1, label=name, color = colors[name])
+    # plt.title("Varicosity size distribution")
+    ax = plt.subplot(111)
+    ax.spines.right.set_visible(False)
+    ax.spines.top.set_visible(False)
+    # Name the axis
+    plt.xlabel('Varicosity size (um$^{2}$)')
+    plt.ylabel('Number of varicosities (% of total)')
+    plt.legend(loc='upper right') # Name the legend
+    i = i + 1
+
+plt.savefig(masterDir + '/combined-Normalized.png')
+plt.clf() # Clear figure
+
+#graph for varicosities of max size 20px
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    # plotting the points
+    counts, edges, bars = plt.hist(group['Area'], histtype='step', alpha=1, bins=100, label=name, color = colors[name])
+    countSum = counts.sum() 
+    normalizedCount = counts / countSum
+    normalizedCounts.append(normalizedCount)
+    normalizedEdges.append(edges)
+    plt.clf() # Clear figure
+i = 0
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    plt.step(np.delete(normalizedEdges[i], len(normalizedEdges[i])-1), normalizedCounts[i]*100, alpha=1, label=name,color = colors[name])
+    # plt.title("Varicosity size distribution")
+    # Name the axis
+    ax = plt.subplot(111)
+    ax.spines.right.set_visible(False)
+    ax.spines.top.set_visible(False)
+    plt.xlabel('Varicosity size (um$^{2}$)')
+    plt.xlim(0.2,1.1)
+    plt.ylabel('Number of varicosities (% of total)')
+    plt.legend(loc='upper right') # Name the legend
+    i = i + 1
+
+plt.savefig(masterDir + '/combined-Normalizedbefore20.png')
+plt.clf() # Clear figure
+
+#graph for varicosities of min size 21
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    # plotting the points
+    counts, edges, bars = plt.hist(group['Area'], histtype='step', alpha=1, bins=100, label=name, color = colors[name])
+    countSum = counts.sum() 
+    normalizedCount = counts / countSum
+    normalizedCounts.append(normalizedCount)
+    normalizedEdges.append(edges)
+    plt.clf() # Clear figure
+i = 0
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    plt.step(np.delete(normalizedEdges[i], len(normalizedEdges[i])-1), normalizedCounts[i]*100, alpha=1, label=name, color = colors[name])
+    # plt.title("Varicosity size distribution")
+    # Name the axis
+    ax = plt.subplot(111)
+    ax.spines.right.set_visible(False)
+    ax.spines.top.set_visible(False)
+    plt.xlabel(r'Varicosity size (um$^{2}$)')
+    plt.xlim(1.1,5.5)
+    plt.ylabel('Number of varicosities (% of total)')
+    plt.ylim(0,6)
+    plt.legend(loc='upper right') # Name the legend
+    i = i + 1
+
+plt.savefig(masterDir + '/combined-Normalizedafter20.png')
+plt.clf() # Clear figure
+
+# Print the density of each region per infected cell
+print("Density of each region per infected cell")
+
+uniqueFiles = df_merged.drop_duplicates(subset='Label', keep='first')
+
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    numberVaricosity = len(group)
+    infectedCells = sum(group.drop_duplicates(subset='Mouse', keep='first')['Infected cells'].dropna().astype(float)) # Remove duplicate mice and get the sum of infected cells
+    numberofFiles = sum(x == name for x in uniqueFiles["Region"])
+    density = numberVaricosity/(numberofFiles * 0.21197 * 0.21197 * infectedCells) # Divide the number of varicosity by size of one image (um) times the number of images so it gives the number of varicosity in 1 mm^2
+    print(str(name) + ": " + str(round(density,2)) + " varicosities per mm^2")
+
+# Print density for each mouse per region per infected cell
+print("Density for each mouse per region per infected cell")
+
+groupedByRegion = data.groupby('Region')
+groupedByMouse = data.groupby('Mouse')
+for nameMouse, groupMouse in groupedByMouse:
+    groupedByRegion = groupMouse.groupby('Region')
+    for nameRegion, groupRegion in groupedByRegion:
+        numberVaricosity = len(groupRegion)
+        infectedCells = sum(groupRegion.drop_duplicates(subset='Mouse', keep='first')['Infected cells'].dropna().astype(float)) # Remove duplicate mice and get the sum of infected cells
+        numberofFiles = sum(x == name for x in uniqueFiles["Region"])
+        density = numberVaricosity/(numberofFiles * 0.21197 * 0.21197 * infectedCells) # Divide the number of varicosity by size of one image (um) times the number of images so it gives the number of varicosity in 1 mm^2
+        print(str(nameMouse) + " ("+ str(nameRegion) + "): " + str(round(density,2)) + " varicosities per mm^2")
+
+# Plot seperated graphs for each region for density of varicosities
+totalDensityFromAllMice = []
+totalDensityInRegion = []
+densityCount = []
+densityEdge = []
+totalDensity = []
+ 
+groupedByRegion = data.groupby('Region')
+groupedByMouse = data.groupby('Mouse')
+for nameRegion, groupRegion in groupedByRegion:
+    groupedByMouse = groupRegion.groupby('Mouse')
+    for nameMouse, groupMouse in groupedByMouse: # Split the all_df dataframe in different dataframes called group for region
+        counts, edges, bars = plt.hist(groupMouse['Area'], histtype='stepfilled', alpha=1, bins=range(0,150,10), label=nameMouse)
+        density = counts/(sum(groupMouse.drop_duplicates(subset='Mouse', keep='first')['Infected cells'].dropna().astype(float)) * 0.21197 * 0.21197)
+        totalDensityFromAllMice = np.concatenate((totalDensityFromAllMice, density))
+        plt.clf() # Clear figure
+    counts, edges, bars = plt.hist(totalDensityFromAllMice, histtype='stepfilled', alpha=1, bins=range(0,150,10), label=nameMouse)
+    densityCount.append(counts)
+    densityEdge.append(edges)
+    plt.clf() # Clear figure
+
+i = 0  
+groupedByRegion = data.groupby('Region')
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    plt.step(np.delete(densityEdge[i], len(densityEdge[i])-1), densityCount[i], alpha=1, label=name)
+    # Name the axis
+    ax = plt.subplot(111)
+    ax.spines.right.set_visible(False)
+    ax.spines.top.set_visible(False)
+    plt.title("Varicosity density distribution")
+    plt.xlabel('Varicosity size (um$^{2}$)')
+    plt.ylabel('Number of varicosities per mm^2 per infected cell')
+    plt.legend(loc='upper right') # Name the legend
+    pd.DataFrame(np.insert(densityCount[i], 0, 0), densityEdge[i]).to_excel(masterDir + '/' + name +  "-density.xlsx") # Save the data to an Excel file
+    plt.savefig(masterDir + '/' + name + '-density.png')
+    plt.clf() # Clear figure
+    i = i + 1
+
+
+# Plot combined graphs for each region for density of varicosities
+totalDensityFromAllMice = []
+totalDensityInRegion = []
+densityCount = []
+densityEdge = []
+totalDensity = []
+
+#full dataset
+groupedByRegion = data.groupby('Region')
+groupedByMouse = data.groupby('Mouse')
+for nameRegion, groupRegion in groupedByRegion:
+    groupedByMouse = groupRegion.groupby('Mouse')
+    for nameMouse, groupMouse in groupedByMouse: # Split the all_df dataframe in different dataframes called group for region
+        counts, edges, bars = plt.hist(groupMouse['Area'], histtype='stepfilled', alpha=1, bins=range(0,150,10), label=nameMouse)
+        density = counts/(sum(groupMouse.drop_duplicates(subset='Mouse', keep='first')['Infected cells'].dropna().astype(float)) * 0.21197 * 0.21197)
+        totalDensityFromAllMice = np.concatenate((totalDensityFromAllMice, density))
+        plt.clf() # Clear figure
+    counts, edges, bars = plt.hist(totalDensityFromAllMice, histtype='stepfilled', alpha=1, bins=range(0,150,10), label=nameMouse)
+    densityCount.append(counts)
+    densityEdge.append(edges)
+    plt.clf() # Clear figure
+
+i = 0  
+groupedByRegion = data.groupby('Region')
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    plt.step(np.delete(densityEdge[i], len(densityEdge[i])-1), densityCount[i], alpha=1, label=name)
+    # Name the axis
+    plt.title("Varicosity density distribution")
+    plt.xlabel('Varicosity size (um$^{2}$)')
+    plt.ylabel('Number of varicosities per mm^2 per infected cell')
+    plt.legend(loc='upper right') # Name the legend
+    plt.savefig(masterDir + '/' + '/combined-density.png')
+    i = i + 1
+plt.clf() # Clear figure
+
+#only first few datapoints (subset of full data)
+groupedByRegion = data.groupby('Region')
+groupedByMouse = data.groupby('Mouse')
+for nameRegion, groupRegion in groupedByRegion:
+    groupedByMouse = groupRegion.groupby('Mouse')
+    for nameMouse, groupMouse in groupedByMouse: # Split the all_df dataframe in different dataframes called group for region
+        counts, edges, bars = plt.hist(groupMouse['Area'], histtype='stepfilled', alpha=1, bins=[0, 10, 20, 30, 40, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130], label=nameMouse)
+        density = counts/(sum(groupMouse.drop_duplicates(subset='Mouse', keep='first')['Infected cells'].dropna().astype(float)) * 0.21197 * 0.21197)
+        totalDensityFromAllMice = np.concatenate((totalDensityFromAllMice, density))
+        plt.clf() # Clear figure
+      
+    counts, edges, bars = plt.hist(totalDensityFromAllMice, histtype='stepfilled', alpha=1, bins=[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130], label=nameMouse)
+    densityCount.append(counts)
+    densityEdge.append(edges)
+    plt.clf() # Clear figure
+
+i = 0  
+groupedByRegion = data.groupby('Region')
+for name, group in groupedByRegion: # Split the all_df dataframe in different dataframes called group for region
+    plt.step(np.delete(densityEdge[i], len(densityEdge[i])-1), densityCount[i], alpha=1, label=name)
+    # Name the axis
+    plt.title("Varicosity density distribution")
+    plt.xlabel('Varicosity size (um$^{2}$)')
+    plt.xlim(-1,50)
+    plt.ylabel('Number of varicosities per mm^2 per infected cell')
+    plt.ylim(0,250)
+    plt.legend(loc='upper right') # Name the legend
+    plt.savefig(masterDir + '/' + '/densitysubset.png')
+    i = i + 1
+df = pd.DataFrame({'count': counts})
+#df.to_excel(masterDir + "/densityresults.xlsx")
+plt.clf() # Clear figure
