@@ -1,9 +1,9 @@
 """
-file:                   Colocalization Excel Exporter
+file:                   Colocalization Excel Exporter (Manders data extraction)
 
-aim:                    Export data from a colocalization Fiji plugin to Excel.
+aim:                    Export Manders data from a colocalization Fiji plugin to Excel.
 
-author:                 Alex Tchung
+author:                 Alex Tchung & Jana Kano
 
 To do before running:   1. In a parent directory, create a "_logs" folder. 
                         2. In that directory, paste all your log files. Kindly make sure to rename each log file according to the image's name.
@@ -13,7 +13,6 @@ instructions:           1. Paste this file in the same folder containing the "_l
                         3. Type "python " (with the space) and drag and drop "Colocalization Excel Exporter.py" in the terminal. 
                         4. Press enter. The Excel file should be created in the "output" folder.
 
-Changelogs:             2022-05-02 - The monster is alive!
 """
 
 import os # File manipulation
