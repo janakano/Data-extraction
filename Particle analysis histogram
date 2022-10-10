@@ -1,6 +1,6 @@
 """
 file:           Varicosity size histogram
-author:         Alex Tchung
+author:         Alex Tchung & Jana Kano
 info:           Trace a histogram from CSV files 
 instructions:   Open terminal. Type "python " (with the space) and drag and drop this script in the terminal. Press enter. 
 """
